@@ -9,3 +9,4 @@ opencv-python
 tensorboard
 healpy
 nflows
+pytorch-lightning

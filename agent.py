@@ -7,51 +7,29 @@ from torch.utils.tensorboard import SummaryWriter
 import utils.utils as utils
 import utils.sd as sd
 from utils.networks import get_network
-from flow.flow import get_flow
 from utils.fisher import MatrixFisherN
+from flow.flow import Flow
+import pytorch_lightning as pl
 
-
-def get_agent(config):
-    return Agent(config)
-
-
-class Agent:
-    def __init__(self, config):
+class Agent(pl.LightningModule):
+    def __init__(self, config, device):
+        super(Agent, self).__init__()
         self.config = config
-        self.flow = get_flow(config)
-        self.flow = DataParallel(self.flow)
-        self.optimizer_flow = optim.Adam(self.flow.parameters(), config.lr)
-
-        lr_decay = [int(item) for item in config.lr_decay.split(',')]
-        scheduler_list = []
-        scheduler_list.append(optim.lr_scheduler.MultiStepLR(
-            self.optimizer_flow, milestones=lr_decay, gamma=config.gamma))
-
-        if config.condition:
-            self.net = get_network(config)
-            optimizer_net_list = [*self.net.parameters()]
-            if config.embedding and (not config.pretrain_fisher):
-                self.embedding = nn.Parameter(torch.randn(
-                    (config.category_num, config.embedding_dim)))
-                optimizer_net_list.append(self.embedding)
-            self.optimizer_net = optim.Adam(optimizer_net_list, config.lr)
-            scheduler_list.append(optim.lr_scheduler.MultiStepLR(
-                self.optimizer_net, milestones=lr_decay, gamma=config.gamma))
-            self.net = DataParallel(self.net)
-
-        if config.is_train:
-            print(f'write_log_dir: {self.config.log_dir}]')
-            self.writer = SummaryWriter(log_dir=self.config.log_dir)
-        if not config.use_lr_decay:
-            scheduler_list = None
-        self.clock = utils.TrainClock(scheduler_list)
+        # self.device = device
+        self.flow = Flow(config)
+        self.net = get_network(config, self.device) if self.config.condition else None
+        if self.config.embedding and (not self.config.pretrain_fisher):
+            self.embedding = nn.Parameter(torch.randn(
+                (self.config.category_num, self.config.embedding_dim), device=self.device))
 
     def forward(self, data):
-        gt = data.get("rot_mat").cuda()  # (b, 3, 3)
+        gt = data.get("rot_mat")  # (b, 3, 3)
         feature, A = self.compute_feature(data, self.config.condition)
 
-        flow = self.flow.cuda()
-        rotation, ldjs = flow(gt, feature)
+        rotation, ldjs = self.flow(gt, feature)
+        return rotation, ldjs, feature, A
+
+    def compute_loss(self, rotation, ldjs, feature, A):
         losses_nll = -ldjs
 
         if self.config.pretrain_fisher:
@@ -72,135 +50,60 @@ class Agent:
         )
         return result_dict
 
-    def train_func(self, data):
-
-        net_optimizers = self.train()
-
-        result_dict = self.forward(data)
-
-        loss = result_dict["loss"]
-
-        for net_optimizer in net_optimizers:
-            net_optimizer[1].zero_grad()
-
-        # with torch.autograd.set_detect_anomaly(True):
-        loss.backward()
-
-        for net_optimizer in net_optimizers:
-            net_optimizer[1].step()
-
+    def training_step(self, batch, batch_idx):
+        rotation, ldjs, feature, A = self.forward(batch)
+        result_dict = self.compute_loss(rotation, ldjs, feature, A)
+        self.log('train_loss', result_dict['loss'])
         return result_dict
 
-    def val_func(self, data):
-        self.eval()
+    def validation_step(self, batch, batch_idx):
+        rotation, ldjs, feature, A = self.forward(batch)
+        result_dict = self.compute_loss(rotation, ldjs, feature, A)
+        self.log('val_loss', result_dict['loss'])
+        return result_dict
 
-        if isinstance(self.flow, DataParallel):
-            flow = self.flow.module
+    def configure_optimizers(self):
+        if self.config.use_lr_decay:
+            lr_decay = [int(item) for item in self.config.lr_decay.split(',')]
+            optimizer_flow_scheduler = optim.lr_scheduler.MultiStepLR(
+                self.optimizer_flow, milestones=lr_decay, gamma=self.config.gamma)
+
+            if self.config.condition:
+                optimizer_net_list = [*self.net.parameters()]
+                if self.config.embedding and (not self.config.pretrain_fisher):
+                    optimizer_net_list.append(self.embedding)
+                self.optimizer_net = optim.Adam(optimizer_net_list, self.config.lr)
+                optimizer_net_scheduler = optim.lr_scheduler.MultiStepLR(
+                    self.optimizer_net, milestones=lr_decay, gamma=self.config.gamma)
+                return [
+                    {"optimizer": self.optimizer_flow, "lr_scheduler": optimizer_flow_scheduler, "monitor": "val_loss"},
+                    {"optimizer": self.optimizer_net, "lr_scheduler": optimizer_net_scheduler, "monitor": "val_loss"}
+                ]
+            else:
+                return [
+                    {"optimizer": self.optimizer_flow, "lr_scheduler": optimizer_flow_scheduler, "monitor": "val_loss"}
+                ]
         else:
-            flow = self.flow
+            if self.config.condition:
+                return [self.optimizer_flow, self.optimizer_net]
+            else:
+                return [self.optimizer_flow]
 
-        with torch.no_grad():
-            feature, A = self.compute_feature(data, self.config.condition)
-            if self.config.eval_train == 'nll':
-                loss_dict = self.eval_nll(flow, data, feature, A)
-            elif self.config.eval_train == 'acc':
-                loss_dict = self.eval_acc(flow, data, feature, A)
+    def save_ckpt(self):
+        checkpoint = {'model_state_dict': self.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict()}
+        save_path = os.path.join(self.config.model_dir, 'checkpoint.ckpt')
+        torch.save(checkpoint, save_path)
 
-            return loss_dict
-
-    def save_ckpt(self, name=None):
-        """save checkpoint during training for future restore"""
-        if name is None:
-            save_path = os.path.join(
-                self.config.model_dir,
-                "ckpt_iteration{}.pth".format(self.clock.iteration),
-            )
-            print(
-                "[{}/{}] Saving checkpoint iteration {}...".format(
-                    self.config.exp_name, self.config.date, self.clock.iteration
-                )
-            )
-        else:
-            save_path = os.path.join(
-                self.config.model_dir, "{}.pth".format(name))
-            print(
-                "[{}/{}] Saving checkpoint {}...".format(
-                    self.config.exp_name, self.config.date, name
-                )
-            )
-
-        # self.flow
-        flow_state_dict = self.flow.module.cpu().state_dict()
-
-        # self.net
-        if self.config.condition:
-            net_state_dict = self.net.module.cpu().state_dict()
-
-        save_dict = {
-            "clock": self.clock.make_checkpoint(),
-            "flow_state_dict": flow_state_dict,
-            "optimizer_flow_state_dict": self.optimizer_flow.state_dict(),
-        }
-
-        if self.config.condition:
-            save_dict["net_state_dict"] = net_state_dict
-            save_dict["optimizer_net_state_dict"] = self.optimizer_net.state_dict()
-            if self.config.category_num != 1 and self.config.embedding and (not self.config.pretrain_fisher):
-                save_dict['embedding'] = self.embedding
-            self.net.cuda()
-
-        torch.save(save_dict, save_path)
-        self.flow.cuda()
-
-    def load_ckpt(self, name=None):
-        """load checkpoint from saved checkpoint"""
-        if os.path.isabs(name):
-            load_path = name
-        else:
-            try:
-                load_path = os.path.join(
-                self.config.model_dir, "{}.pth".format(name))
-            except:
-                load_path = name
-        
-        print(load_path)
-        if not os.path.exists(load_path):
-            raise ValueError("Checkpoint {} not exists.".format(load_path))
-
-        print("load_path {}".format(load_path))
-        checkpoint = torch.load(load_path, map_location=torch.device("cpu"))
-        print("Loading checkpoint from {} ...".format(load_path))
-
-        if self.config.condition:
-            self.net.module.load_state_dict(checkpoint["net_state_dict"])
-            optimizer_net_list = [*self.net.parameters()]
-
-            if self.config.category_num != 1 and self.config.embedding and (not self.config.pretrain_fisher):
-                self.embedding = nn.Parameter(checkpoint['embedding'])
-                optimizer_net_list.append(self.embedding)
-                self.embedding = self.embedding.cuda()
-
-            self.optimizer_net = optim.Adam(optimizer_net_list, self.config.lr)
-            self.optimizer_net.load_state_dict(
-                checkpoint["optimizer_net_state_dict"],
-            )
-            self.net.cuda()
-
-        #print(checkpoint["flow_state_dict"].keys())
-        self.flow.module.load_state_dict(checkpoint["flow_state_dict"])
-
-        self.flow.cuda()
-        self.optimizer_flow = optim.Adam(
-            self.flow.parameters(), self.config.lr)
-        self.optimizer_flow.load_state_dict(
-            checkpoint["optimizer_flow_state_dict"],
-        )
-        self.clock.restore_checkpoint(checkpoint["clock"])
+    def load_ckpt(self, checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     def eval_nll(self, flow, data, feature, A):
         # compute gt_nll
         if self.config.dataset == "symsol":
-            gt = data.get('rot_mat_all').cuda()
+            gt = data.get('rot_mat_all').to(self.device)
             gt_amount = gt.size(1)
             feature_2 = (
                 feature[:, None, :]
@@ -213,7 +116,7 @@ class Agent:
             gt_ldjs = gt_ldjs.reshape(-1, gt_amount)
             losses_ll = gt_ldjs.mean(dim=-1)
         else:
-            gt = data.get('rot_mat').cuda()
+            gt = data.get('rot_mat').to(self.device)
             rotation, gt_ldjs = flow(gt, feature)
             losses_ll = gt_ldjs
 
@@ -250,7 +153,7 @@ class Agent:
             base_ll = pre_distribution._log_prob(
                 sample).reshape(batch, -1)
         else:
-            sample = sd.generate_queries(self.config.number_queries).cuda()
+            sample = sd.generate_queries(self.config.number_queries).to(self.device)
             sample = (
                 sample[None, ...].repeat(batch, 1, 1, 1).reshape(-1, 3, 3)
             )
@@ -265,11 +168,11 @@ class Agent:
         batch_inds = torch.arange(batch)
         est_rotation = samples[batch_inds, max_inds]
         if self.config.dataset == 'symsol':
-            gt = data.get('rot_mat_all').cuda()
+            gt = data.get('rot_mat_all').to(self.device)
             err_rad = utils.min_geodesic_distance_rotmats(
                 est_rotation, gt)
         else:
-            gt = data.get('rot_mat').cuda()
+            gt = data.get('rot_mat').to(self.device)
             err_rad = utils.min_geodesic_distance_rotmats(
                 gt, est_rotation.reshape(batch, -1, 3, 3))
         err_deg = torch.rad2deg(err_rad)
@@ -278,11 +181,11 @@ class Agent:
             err_deg=err_deg,
         )
         if self.config.dataset == 'pascal3d':
-            easy = torch.nonzero(data.get('easy').cuda()).reshape(-1)
+            easy = torch.nonzero(data.get('easy').to(self.device)).reshape(-1)
             result_dict = {k: v[easy] for k, v in result_dict.items()}
         return result_dict
 
-    def train(self):
+    def train_agent(self):
         net_optimizers = []
         if self.config.condition:
             self.net.train()
@@ -301,16 +204,16 @@ class Agent:
             A = None
             feature = None
         else:
-            img = data.get("img").cuda()
-            net = self.net.cuda()
+            data['cate'] = data['cate'].to(self.device)
+            img = data.get("img").to(self.device)
+            self.net = self.net.to(self.device)
             if self.config.pretrain_fisher:
-                feature, A = net(img, data.get('cate').cuda(
-                ) + (1 if self.config.dataset == 'pascal3d' else 0))
+                feature, A = net(img, data.get('cate').to(self.device)
+                + (1 if self.config.dataset == 'pascal3d' else 0))
                 A = A.reshape(-1, 3, 3)
             else:
                 feature = self.net(img)  # (b, feature_dim)
                 if self.config.category_num != 1 and self.config.embedding:
-                    self.embedding = self.embedding.cuda()
                     feature = torch.concat(
                         [feature, self.embedding[data.get('cate')]], dim=-1)
                 A = None

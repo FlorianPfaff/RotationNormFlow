@@ -9,7 +9,7 @@ from dataset.dataloader_utils import MixDataset
 
 cate10 = ['bathtub', 'bed', 'chair', 'desk', 'dresser',
           'monitor', 'night_stand', 'sofa', 'table', 'toilet']
-
+import pytorch_lightning as pl
 
 class ModelNetDataset(Dataset_Base):
     def __init__(

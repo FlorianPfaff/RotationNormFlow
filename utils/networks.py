@@ -13,7 +13,7 @@ fisher_network = dict(
 )
 
 
-def get_network(config):
+def get_network(config, device):
     assert config.condition
 
     if config.pretrain_fisher:
@@ -30,7 +30,7 @@ def get_network(config):
         net = get_ResNet(config)
     else:
         raise NotImplementedError()
-    net.cuda()
+    net.to(device)
     return net
 
 
