@@ -30,13 +30,13 @@ class LitModel(pl.LightningModule):
         val_loader, _, _ = get_dataloader(self.config.dataset, "test", self.config)
         return val_loader
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, _):
         rotation, ldjs, feature, A = self.agent(batch)
         result_dict = self.agent.compute_loss(rotation, ldjs, feature, A)
         self.log('train_loss', result_dict['loss'])
         return result_dict['loss']
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, _):
         rotation, ldjs, feature, A = self.agent(batch)
         result_dict = self.agent.compute_loss(rotation, ldjs, feature, A)
         self.log('val_loss', result_dict['loss'])
@@ -65,13 +65,13 @@ def main():
         mode='min',
     )
 
-    profile = True
+    profile = False
     if profile:
         profiler = PyTorchProfiler(emit_nvtx=True)
     else:
         profiler = None
     # Create trainer
-    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback], gpus=-1, profiler=profiler)
+    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback], gpus=-1)#, profiler=profiler)
     trainer.fit(model)
 
 if __name__ == "__main__":

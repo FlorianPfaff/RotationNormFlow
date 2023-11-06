@@ -208,7 +208,7 @@ class Agent(pl.LightningModule):
             img = data.get("img").to(self.device)
             self.net = self.net.to(self.device)
             if self.config.pretrain_fisher:
-                feature, A = net(img, data.get('cate').to(self.device)
+                feature, A = self.net(img, data.get('cate').to(self.device)
                 + (1 if self.config.dataset == 'pascal3d' else 0))
                 A = A.reshape(-1, 3, 3)
             else:
