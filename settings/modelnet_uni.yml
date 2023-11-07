@@ -43,3 +43,4 @@ eval: 'log' # can also be 'sample', or 'pdf'
 # you can also change size of number_queries to obtain better visualization
 #vis_idx: 5
 eval_category: 'toilet'
+profile: True

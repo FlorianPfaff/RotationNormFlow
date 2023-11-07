@@ -123,6 +123,7 @@ class Config(object):
         group.add_argument('--category_num', type=int, default=1, help='number of categories to train at once')
         group.add_argument('--embedding', type=int, default=0, help='whether or not use category embedding')
         group.add_argument('--embedding_dim', type=int, default=32, help='embedding feature dimensions')
+        group.add_argument('--profile', type=bool, default=False, help='enable profier')
         # circularsplienflow, mobiusflow
         #group.add_argument('-prior', type = str, help = 'which prior distribution to use')
         # uniform, matrix_fisher

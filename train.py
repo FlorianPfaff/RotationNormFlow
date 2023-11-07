@@ -65,13 +65,11 @@ def main():
         mode='min',
     )
 
-    profile = False
-    if profile:
-        profiler = PyTorchProfiler(emit_nvtx=True)
-    else:
-        profiler = None
+    profiler = PyTorchProfiler(emit_nvtx=True) if config.profile else None
+    
     # Create trainer
-    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback], gpus=-1)#, profiler=profiler)
+    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback],
+                      accelerator='gpu', devices=-1, profiler=profiler)
     trainer.fit(model)
 
 if __name__ == "__main__":
