@@ -1,15 +1,11 @@
-import os
 from os.path import join
-import numpy as np
 from dataset.lib.Dataset_Base import Dataset_Base
 import torch
-from torch.utils.data import Dataset, DataLoader
 from pytorch3d import transforms as trans
 from dataset.dataloader_utils import MixDataset
 
 cate10 = ['bathtub', 'bed', 'chair', 'desk', 'dresser',
           'monitor', 'night_stand', 'sofa', 'table', 'toilet']
-import pytorch_lightning as pl
 
 class ModelNetDataset(Dataset_Base):
     def __init__(
@@ -45,22 +41,7 @@ class ModelNetDataset(Dataset_Base):
 
         return sample
 
-def get_dataloader_modelnet(phase, config):
-    if phase == "train":
-        batch_size = config.batch_size
-        collection = "train"
-        shuffle = True
-        aug = None
-
-    elif phase == "test":
-        batch_size = config.batch_size // torch.cuda.device_count()
-        collection = "test"
-        shuffle = False
-        aug = None
-
-    else:
-        raise ValueError
-
+def get_dataloader_modelnet(collection, config, aug=None):
     datasets = []
     for category in cate10:
         dset = ModelNetDataset(

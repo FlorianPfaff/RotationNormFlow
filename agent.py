@@ -2,8 +2,6 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn import DataParallel
-from torch.utils.tensorboard import SummaryWriter
 import utils.utils as utils
 import utils.sd as sd
 from utils.networks import get_network
@@ -50,13 +48,13 @@ class Agent(pl.LightningModule):
         )
         return result_dict
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch):
         rotation, ldjs, feature, A = self.forward(batch)
         result_dict = self.compute_loss(rotation, ldjs, feature, A)
         self.log('train_loss', result_dict['loss'])
         return result_dict
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch):
         rotation, ldjs, feature, A = self.forward(batch)
         result_dict = self.compute_loss(rotation, ldjs, feature, A)
         self.log('val_loss', result_dict['loss'])
