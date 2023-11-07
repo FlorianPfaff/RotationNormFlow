@@ -3,8 +3,8 @@ from pytorch_lightning import Trainer, LightningDataModule
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from config import get_config
-from dataset.dataset_modelnet import get_dataloader_modelnet
-from agent import Agent
+from dataset.dataset_modelnet import get_dataloader_modelnet, PrecomputedModelNetDataModule, ModelNetDataModule
+from agent import Agent, PrecomputedFeaturesAgent
 from utils.utils import acc
 import torch
 import numpy as np
@@ -18,7 +18,11 @@ class LitModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.agent = Agent(config, self.device)
+        if config.use_precomputed_features:
+            self.agent = PrecomputedFeaturesAgent(config, self.device)
+        else:
+            self.agent = Agent(config, self.device)
+            
         self.acc_list = [i for i in range(5, 35, 5)]
 
     def forward(self, x):
@@ -41,32 +45,18 @@ class LitModel(pl.LightningModule):
         return optimizer
 
 
-class ModelNetDataModule(LightningDataModule):
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-
-    def setup(self, stage=None):
-        if stage == 'fit' or stage is None:
-            self.train_dataset, self.category_datasets, self.categories = get_dataloader_modelnet('train', self.config)
-            self.val_dataset, _, _ = get_dataloader_modelnet('test', self.config)
-
-        if stage == 'test' or stage is None:
-            self.test_dataset, _, _ = get_dataloader_modelnet('test', self.config)
-
-    def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.config.batch_size, shuffle=True, num_workers=self.config.num_workers, pin_memory=True)
-
-    def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.config.batch_size, shuffle=False, num_workers=self.config.num_workers, pin_memory=True)
-
-    def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.config.batch_size, shuffle=False, num_workers=self.config.num_workers, pin_memory=True)
-
 def main():
     # Create experiment config containing all hyperparameters
     config = get_config("train")
-    data_module = ModelNetDataModule(config)
+    if config.use_precomputed_features:
+        data_module = PrecomputedModelNetDataModule(
+            features_paths={'train': 'train_features.npz', 'val': 'val_features.npz', 'test': 'test_features.npz'},
+            metadata_paths={'train': 'train_metadata.pkl', 'val': 'val_metadata.pkl', 'test': 'test_metadata.pkl'},
+            batch_size=config.batch_size
+        )
+    else:
+        data_module = ModelNetDataModule(config)
+
     # create network and training agent
     model = LitModel(config)
 

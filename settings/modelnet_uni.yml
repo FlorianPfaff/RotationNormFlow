@@ -45,3 +45,4 @@ eval: 'log' # can also be 'sample', or 'pdf'
 eval_category: 'toilet'
 profile: True
 net_arch: 'resnet101'
+use_precomputed_features: True

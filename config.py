@@ -124,7 +124,8 @@ class Config(object):
         group.add_argument('--embedding', type=int, default=0, help='whether or not use category embedding')
         group.add_argument('--embedding_dim', type=int, default=32, help='embedding feature dimensions')
         group.add_argument('--profile', type=bool, default=False, help='enable profier')
-        group.add_argument('--net_arch', type=str, default='vgg16', help='network architecture for configuration.')
+        group.add_argument('--net_arch', type=str, default='vgg16', help='network architecture for configuration')
+        group.add_argument('--use_precomputed_features', type=bool, default=False, help='use precomputed features or not')
         # circularsplienflow, mobiusflow
         #group.add_argument('-prior', type = str, help = 'which prior distribution to use')
         # uniform, matrix_fisher

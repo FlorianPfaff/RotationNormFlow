@@ -49,7 +49,7 @@ class Flow(nn.Module):
     def forward(self, rotation, feature=None, inverse=False, draw=False):
         if inverse:
             return self.inverse(rotation, feature, draw)
-        permute = self._permute.to(rotation.device)
+        permute = self._permute
 
         ldjs = 0
         exchange_count = 0

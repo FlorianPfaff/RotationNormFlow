@@ -216,3 +216,16 @@ class Agent(pl.LightningModule):
                         [feature, self.embedding[data.get('cate')]], dim=-1)
                 A = None
         return feature, A
+
+
+class PrecomputedFeaturesAgent(Agent):
+    def __init__(self, config, device):
+        super().__init__(config, device)
+
+    def forward(self, data):
+        gt = data.get("rot_mat")  # (b, 3, 3)
+        feature = data.get("feature")  # Precomputed feature
+        A = data.get("A") if "A" in data else None  # Precomputed 'A' matrix if it exists
+
+        rotation, ldjs = self.flow(gt, feature)
+        return rotation, ldjs, feature, A
