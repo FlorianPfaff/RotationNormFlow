@@ -35,7 +35,6 @@ val_frequency: 2500
 save_frequency: 5000
 number_queries: 500
 
-gpu: 0
 eval_train: 'acc'
 
 

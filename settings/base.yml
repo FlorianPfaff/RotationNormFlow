@@ -29,6 +29,6 @@ max_iteration:  900000
 num_workers: 4
 log_frequency: 100
 number_queries: 5000
-gpu: 0
+
 eval: 'log'
 eval_train: 'acc'
