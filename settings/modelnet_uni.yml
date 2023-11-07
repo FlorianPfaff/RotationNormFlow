@@ -44,3 +44,4 @@ eval: 'log' # can also be 'sample', or 'pdf'
 #vis_idx: 5
 eval_category: 'toilet'
 profile: True
+net_arch: 'resnet101'

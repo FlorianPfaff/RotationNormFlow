@@ -64,9 +64,9 @@ def get_dataloader_modelnet(phase, config):
     datasets = []
     for category in cate10:
         dset = ModelNetDataset(
-            config.data_dir, category, collection=collection, net_arch="vgg16", aug=aug)
+            config.data_dir, category, collection=collection, net_arch=config.net_arch, aug=aug)
         datasets.append(dset)
+
     entire_dataset = MixDataset(datasets)
-    entire_dloader = DataLoader(entire_dataset, batch_size=batch_size,
-                                num_workers=config.num_workers, shuffle=shuffle, pin_memory=True)
-    return entire_dloader, [DataLoader(cat_dset, batch_size=batch_size, num_workers=config.num_workers, shuffle=shuffle, pin_memory=True) for cat_dset in datasets], cate10
+
+    return entire_dataset, datasets, cate10

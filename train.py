@@ -1,16 +1,18 @@
 import pytorch_lightning as pl
-from pytorch_lightning import Trainer
+from pytorch_lightning import Trainer, LightningDataModule
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from config import get_config
-from dataset import get_dataloader
+from dataset.dataset_modelnet import get_dataloader_modelnet
 from agent import Agent
 from utils.utils import acc
 import torch
 import numpy as np
 import random
+from torch.utils.data import Dataset, DataLoader
 
 from pytorch_lightning.profilers import PyTorchProfiler
+
 
 class LitModel(pl.LightningModule):
     def __init__(self, config):
@@ -21,14 +23,6 @@ class LitModel(pl.LightningModule):
 
     def forward(self, x):
         return self.agent(x)
-
-    def train_dataloader(self):
-        train_loader, _, _ = get_dataloader(self.config.dataset, "train", self.config)
-        return train_loader
-
-    def val_dataloader(self):
-        val_loader, _, _ = get_dataloader(self.config.dataset, "test", self.config)
-        return val_loader
 
     def training_step(self, batch, _):
         rotation, ldjs, feature, A = self.agent(batch)
@@ -46,10 +40,33 @@ class LitModel(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr)
         return optimizer
 
+
+class ModelNetDataModule(LightningDataModule):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset, self.category_datasets, self.categories = get_dataloader_modelnet('train', self.config)
+            self.val_dataset, _, _ = get_dataloader_modelnet('test', self.config)
+
+        if stage == 'test' or stage is None:
+            self.test_dataset, _, _ = get_dataloader_modelnet('test', self.config)
+
+    def train_dataloader(self):
+        return DataLoader(self.train_dataset, batch_size=self.config.batch_size, shuffle=True, num_workers=self.config.num_workers, pin_memory=True)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_dataset, batch_size=self.config.batch_size, shuffle=False, num_workers=self.config.num_workers, pin_memory=True)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.config.batch_size, shuffle=False, num_workers=self.config.num_workers, pin_memory=True)
+
 def main():
     # Create experiment config containing all hyperparameters
     config = get_config("train")
-
+    data_module = ModelNetDataModule(config)
     # create network and training agent
     model = LitModel(config)
 
@@ -70,7 +87,7 @@ def main():
     # Create trainer
     trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback],
                       accelerator='gpu', devices=-1, profiler=profiler)
-    trainer.fit(model)
+    trainer.fit(model, datamodule=data_module)
 
 if __name__ == "__main__":
     main()

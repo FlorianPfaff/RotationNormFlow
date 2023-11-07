@@ -12,6 +12,9 @@ fisher_network = dict(
     pascal3d='Matrixfisher/storage/pascal/saved_weights/state_dict_119.pkl',
 )
 
+from torchvision.models import resnet101
+from torchvision.models.resnet import ResNet101_Weights
+
 
 def get_network(config, device):
     assert config.condition
@@ -40,8 +43,8 @@ def get_ResNet(config, pretrain=True):
     # if use pretrained matrix fisher model
     if pretrain:
         print(f"Loading pretrained model...")
-        model.load_state_dict(load_state_dict_from_url(
-            models.resnet.model_urls[config.network], map_location='cuda'))
+        weights = ResNet101_Weights.DEFAULT
+        model = resnet101(weights=weights)
 
     model.fc = nn.Sequential(
         nn.Dropout(0.2),
