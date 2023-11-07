@@ -71,7 +71,8 @@ def main():
     else:
         profiler = None
     # Create trainer
-    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback], gpus=-1)#, profiler=profiler)
+    #trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback])#, gpus=-1)#, profiler=profiler)
+    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback],accelerator="gpu", devices=-1)#, profiler=profiler)
     trainer.fit(model)
 
 if __name__ == "__main__":
