@@ -2,7 +2,7 @@ from os.path import join
 from dataset.lib.Dataset_Base import Dataset_Base
 import torch
 from pytorch3d import transforms as trans
-from dataset.dataloader_utils import MixDataset
+from torch.utils.data import DataLoader, ConcatDataset
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
@@ -45,17 +45,6 @@ class ModelNetDataset(Dataset_Base):
 
         return sample
 
-def get_dataloader_modelnet(collection, config, aug=None):
-    datasets = []
-    for category in cate10:
-        dset = ModelNetDataset(
-            config.data_dir, category, collection=collection, net_arch=config.net_arch, aug=aug)
-        datasets.append(dset)
-
-    entire_dataset = MixDataset(datasets)
-
-    return entire_dataset, datasets, cate10
-
 
 class PrecomputedFeaturesDataset(Dataset):
     def __init__(self, features_path, metadata_path):
@@ -75,6 +64,16 @@ class PrecomputedFeaturesDataset(Dataset):
         }
 
 
+class ConcatenatedDataset(ConcatDataset):
+    def __init__(self, datasets):
+        super().__init__(datasets)
+
+def get_dataset_modelnet_all_cat(collection, config):
+    datasets = [ModelNetDataset(config.data_dir, category, collection=collection, net_arch=config.net_arch, aug=None) for category in cate10]
+
+    return ConcatenatedDataset(datasets)
+
+
 class ModelNetDataModule(LightningDataModule):
     def __init__(self, config):
         super().__init__()
@@ -82,11 +81,11 @@ class ModelNetDataModule(LightningDataModule):
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
-            self.train_dataset, self.category_datasets, self.categories = get_dataloader_modelnet('train', self.config)
-            self.val_dataset, _, _ = get_dataloader_modelnet('test', self.config)
+            self.train_dataset = get_dataset_modelnet_all_cat('train', self.config)
+            self.val_dataset = get_dataset_modelnet_all_cat('test', self.config)
 
         if stage == 'test' or stage is None:
-            self.test_dataset, _, _ = get_dataloader_modelnet('test', self.config)
+            self.test_dataset = get_dataset_modelnet_all_cat('test', self.config)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.config.batch_size, shuffle=True, num_workers=self.config.num_workers, pin_memory=True)
@@ -96,6 +95,12 @@ class ModelNetDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.config.batch_size, shuffle=False, num_workers=self.config.num_workers, pin_memory=True)
+
+
+class NonShufflingModelNetDataModule(ModelNetDataModule):
+    def train_dataloader(self):
+        # Overwrite the train_dataloader method to set shuffle to False
+        return DataLoader(self.train_dataset, batch_size=self.config.batch_size, shuffle=False, num_workers=self.config.num_workers, pin_memory=True)
 
 
 class PrecomputedModelNetDataModule(LightningDataModule):

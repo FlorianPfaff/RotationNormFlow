@@ -1,33 +1,21 @@
 import torch
-from torch.utils.data import DataLoader
 import numpy as np
 import pickle
-import os
 from config import get_config
-import pytorch_lightning as pl
-from pytorch_lightning import Trainer, LightningDataModule
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
-from config import get_config
-from dataset.dataset_modelnet import get_dataloader_modelnet
 from agent import Agent
-from utils.utils import acc
 import torch
 from tqdm import tqdm
 import numpy as np
-import random
-from torch.utils.data import Dataset, DataLoader
+import sys
 
-from pytorch_lightning.profilers import PyTorchProfiler
-
-from dataset.dataset_modelnet import ModelNetDataModule
+from dataset.dataset_modelnet import NonShufflingModelNetDataModule
 
 def main():
     device = 'cuda'
     config = get_config("train")
     # Initialize your data module and agent (model)
-    data_module = ModelNetDataModule(config)
-    agent = Agent(config, device=device)
+    data_module = NonShufflingModelNetDataModule(config)
+    agent = Agent(config)
 
     # Move the agent to the appropriate device and set to evaluation mode
     agent = agent.to(device)
@@ -40,7 +28,7 @@ def main():
     # Process each dataset type
     for dataset_type in ['train', 'val', 'test']:
         # Setup the data module for the current stage
-        if dataset_type in ['train', 'val']:
+        if dataset_type in ['train']:
             data_module.setup(stage='fit')
         else:
             data_module.setup(stage='test')
@@ -56,13 +44,14 @@ def main():
             raise ValueError(f"Invalid dataset type: {dataset_type}")
 
         # Compute features
-        features = []
-        metadata = []
+        features = list([])
+        metadata = list([])
         # Calculate the number of batches that make up approximately 5% of the dataset
         five_percent_batches = max(1, np.ceil(len(dataloader) * 0.05))
 
         with torch.no_grad():
             for i, batch in enumerate(tqdm(dataloader, desc=f"Processing {dataset_type} data")):
+                batch = {k: v.to(agent.device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
                 # Compute features using the agent's 'compute_feature' method
                 feature, _ = agent.compute_feature(batch, condition=config.condition)
                 features.append(feature.cpu().numpy())
@@ -82,13 +71,15 @@ def main():
                     # Concatenate all features and metadata processed so far
                     partial_features = np.concatenate(features, axis=0)
                     partial_metadata = {key: np.concatenate([d[key] for d in metadata], axis=0) for key in metadata[0]}
-                    
+                    print(f"Partial features shape: {partial_features.shape}")
+                    print(f"Partial features storage: {sys.getsizeof(partial_features) / 1024 ** 3:.2f} GB")
                     # Save partial features and metadata to disk
                     partial_features_path = f'partial_{features_path_template.format(dataset_type)}'
                     partial_metadata_path = f'partial_{metadata_path_template.format(dataset_type)}'
                     np.savez_compressed(partial_features_path, features=partial_features)
                     with open(partial_metadata_path, 'wb') as f:
                         pickle.dump(partial_metadata, f)
+                    del partial_features, partial_metadata
 
         # After the loop is finished, save the final complete set
         all_features = np.concatenate(features, axis=0)

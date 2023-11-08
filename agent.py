@@ -10,11 +10,10 @@ from flow.flow import Flow
 import pytorch_lightning as pl
 
 class Agent(pl.LightningModule):
-    def __init__(self, config, device):
+    def __init__(self, config):
         super(Agent, self).__init__()
         self.config = config
-        # self.device = device
-        self.flow = Flow(config)
+        self.flow = Flow(config).to(self.device)
         self.net = get_network(config, self.device) if self.config.condition else None
         if self.config.embedding and (not self.config.pretrain_fisher):
             self.embedding = nn.Parameter(torch.randn(
@@ -101,7 +100,7 @@ class Agent(pl.LightningModule):
     def eval_nll(self, flow, data, feature, A):
         # compute gt_nll
         if self.config.dataset == "symsol":
-            gt = data.get('rot_mat_all').to(self.device)
+            gt = data.get('rot_mat_all')
             gt_amount = gt.size(1)
             feature_2 = (
                 feature[:, None, :]
@@ -114,7 +113,7 @@ class Agent(pl.LightningModule):
             gt_ldjs = gt_ldjs.reshape(-1, gt_amount)
             losses_ll = gt_ldjs.mean(dim=-1)
         else:
-            gt = data.get('rot_mat').to(self.device)
+            gt = data.get('rot_mat')
             rotation, gt_ldjs = flow(gt, feature)
             losses_ll = gt_ldjs
 
@@ -151,7 +150,7 @@ class Agent(pl.LightningModule):
             base_ll = pre_distribution._log_prob(
                 sample).reshape(batch, -1)
         else:
-            sample = sd.generate_queries(self.config.number_queries).to(self.device)
+            sample = sd.generate_queries(self.config.number_queries)
             sample = (
                 sample[None, ...].repeat(batch, 1, 1, 1).reshape(-1, 3, 3)
             )
@@ -166,11 +165,11 @@ class Agent(pl.LightningModule):
         batch_inds = torch.arange(batch)
         est_rotation = samples[batch_inds, max_inds]
         if self.config.dataset == 'symsol':
-            gt = data.get('rot_mat_all').to(self.device)
+            gt = data.get('rot_mat_all')
             err_rad = utils.min_geodesic_distance_rotmats(
                 est_rotation, gt)
         else:
-            gt = data.get('rot_mat').to(self.device)
+            gt = data.get('rot_mat')
             err_rad = utils.min_geodesic_distance_rotmats(
                 gt, est_rotation.reshape(batch, -1, 3, 3))
         err_deg = torch.rad2deg(err_rad)
@@ -179,7 +178,7 @@ class Agent(pl.LightningModule):
             err_deg=err_deg,
         )
         if self.config.dataset == 'pascal3d':
-            easy = torch.nonzero(data.get('easy').to(self.device)).reshape(-1)
+            easy = torch.nonzero(data.get('easy')).reshape(-1)
             result_dict = {k: v[easy] for k, v in result_dict.items()}
         return result_dict
 
@@ -202,11 +201,11 @@ class Agent(pl.LightningModule):
             A = None
             feature = None
         else:
-            data['cate'] = data['cate'].to(self.device)
-            img = data.get("img").to(self.device)
-            self.net = self.net.to(self.device)
+            data['cate'] = data['cate']
+            img = data.get("img")
+            self.net = self.net
             if self.config.pretrain_fisher:
-                feature, A = self.net(img, data.get('cate').to(self.device)
+                feature, A = self.net(img, data.get('cate')
                 + (1 if self.config.dataset == 'pascal3d' else 0))
                 A = A.reshape(-1, 3, 3)
             else:
