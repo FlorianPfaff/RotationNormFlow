@@ -218,8 +218,8 @@ class Agent(pl.LightningModule):
 
 
 class PrecomputedFeaturesAgent(Agent):
-    def __init__(self, config, device):
-        super().__init__(config, device)
+    def __init__(self, config):
+        super().__init__(config)
 
     def forward(self, data):
         gt = data.get("rot_mat")  # (b, 3, 3)

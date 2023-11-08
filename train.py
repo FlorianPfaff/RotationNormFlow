@@ -1,15 +1,10 @@
 import pytorch_lightning as pl
-from pytorch_lightning import Trainer, LightningDataModule
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from config import get_config
-from dataset.dataset_modelnet import get_dataloader_modelnet, PrecomputedModelNetDataModule, ModelNetDataModule
+from dataset.dataset_modelnet import PrecomputedModelNetDataModule, ModelNetDataModule
 from agent import Agent, PrecomputedFeaturesAgent
-from utils.utils import acc
 import torch
-import numpy as np
-import random
-from torch.utils.data import Dataset, DataLoader
 
 from pytorch_lightning.profilers import PyTorchProfiler
 
@@ -19,9 +14,9 @@ class LitModel(pl.LightningModule):
         super().__init__()
         self.config = config
         if config.use_precomputed_features:
-            self.agent = PrecomputedFeaturesAgent(config, self.device)
+            self.agent = PrecomputedFeaturesAgent(config)
         else:
-            self.agent = Agent(config, self.device)
+            self.agent = Agent(config)
             
         self.acc_list = [i for i in range(5, 35, 5)]
 
@@ -75,7 +70,7 @@ def main():
     profiler = PyTorchProfiler(emit_nvtx=True) if config.profile else None
     
     # Create trainer
-    trainer = Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback],
+    trainer = pl.Trainer(max_epochs=config.max_iteration, logger=logger, callbacks=[checkpoint_callback],
                       accelerator='gpu', devices=-1, profiler=profiler)
     trainer.fit(model, datamodule=data_module)
 
