@@ -48,17 +48,20 @@ class Agent(pl.LightningModule):
         return result_dict
 
     def training_step(self, batch):
+        raise NotImplementedError('')
         rotation, ldjs, feature, A = self.forward(batch)
         result_dict = self.compute_loss(rotation, ldjs, feature, A)
         self.log('train_loss', result_dict['loss'])
         return result_dict
 
     def validation_step(self, batch):
+        raise NotImplementedError('')
         rotation, ldjs, feature, A = self.forward(batch)
         result_dict = self.compute_loss(rotation, ldjs, feature, A)
         self.log('val_loss', result_dict['loss'])
         return result_dict
 
+    """
     def configure_optimizers(self):
         if self.config.use_lr_decay:
             lr_decay = [int(item) for item in self.config.lr_decay.split(',')]
@@ -85,6 +88,7 @@ class Agent(pl.LightningModule):
                 return [self.optimizer_flow, self.optimizer_net]
             else:
                 return [self.optimizer_flow]
+    """
 
     def save_ckpt(self):
         checkpoint = {'model_state_dict': self.state_dict(),
@@ -228,3 +232,6 @@ class PrecomputedFeaturesAgent(Agent):
 
         rotation, ldjs = self.flow(gt, feature)
         return rotation, ldjs, feature, A
+    
+    def compute_feature(self, _, _1):
+        raise NotImplementedError("This should not be used for precomputed features.")
