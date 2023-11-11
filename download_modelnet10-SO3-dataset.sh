@@ -18,7 +18,7 @@ if [[ ! -d "${dataset_dir}" || $(get_dir_size "${dataset_dir}") < 2 ]]; then
     cd "${data_dir}"
     
     # Download and unzip the dataset
-    wget -q https://i81server.iar.kit.edu/RotationNormFlow/ModelNet10-SO3.zip
+    wget https://i81server.iar.kit.edu/RotationNormFlow/ModelNet10-SO3.zip
     unzip ModelNet10-SO3.zip -d ModelNet10-SO3
     rm ModelNet10-SO3.zip
 fi
