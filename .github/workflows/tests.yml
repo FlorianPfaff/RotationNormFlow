@@ -39,6 +39,9 @@ jobs:
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
 
+    - name: List images
+      run: docker images
+
     - name: Run tests
       run: |
         docker run --ipc=host -v ${{ github.workspace }}:/workspace my-image:latest /bin/bash -c "\
