@@ -31,7 +31,18 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Download data from Google Drive
+    - name: Check data folder size
+      id: check_folder
+      run: |
+        if [[ ! -d ${{ env.dataset_dir }} || $(du -sb ${{ env.dataset_dir }} | awk '{print $1/1024/1024/1024}') < 2 ]]; then
+            echo "data_download_required=true" >> $GITHUB_ENV
+        else
+            echo "data_download_required=false" >> $GITHUB_ENV
+        fi
+
+    # Download data from if the data folder is less than 2 GB
+    - name: Download data
+      if: env.data_download_required == 'true'
       run: curl -L -o ModelNet10-SO3.zip ${{ secrets.DOWNLOAD_URL }}
 
     - name: List images
