@@ -32,4 +32,5 @@ if [[ ! -d "${dataset_dir}" || $(get_dir_size "${dataset_dir}") < 2 ]]; then
 
     # Remove the zip file
     rm ModelNet10-SO3.zip
+    cd ..
 fi
