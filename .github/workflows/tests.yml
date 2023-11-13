@@ -29,15 +29,14 @@ jobs:
         restore-keys: |
           data-
 
-    - name: Build Docker image
+    - name: Build and push
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./Dockerfile
-        load: true
-        tags: my-image:latest
-        cache-from: type=local,src=/tmp/.buildx-cache
-        cache-to: type=local,dest=/tmp/.buildx-cache
+        push: true
+        tags: "my-image:latest:latest"
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: List images
       run: docker images
