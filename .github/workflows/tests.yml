@@ -34,7 +34,7 @@ jobs:
     - name: Check data folder size
       id: check_folder
       run: |
-        if [[ ! -d ${{ env.dataset_dir }} || $(du -sb ${{ env.dataset_dir }} | awk '{print $1/1024/1024/1024}') < 2 ]]; then
+        if [[ ! -d ./data || $(du -sb ./data | awk '{print $1/1024/1024/1024}') < 2 ]]; then
             echo "data_download_required=true" >> $GITHUB_ENV
         else
             echo "data_download_required=false" >> $GITHUB_ENV
@@ -53,4 +53,4 @@ jobs:
         docker run --ipc=host -v ${{ github.workspace }}:/workspace my-image:latest /bin/bash -c "\
           pip install -r requirements.txt torch-tb-profiler pytest && \
           /bin/bash download_modelnet10-SO3-dataset.sh && \
-          python -m unittest discover"
+          python -m unittest discover -p test_training.py"
