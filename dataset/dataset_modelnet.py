@@ -53,7 +53,7 @@ def get_dataloader_modelnet(phase, config):
         aug = None
 
     elif phase == "test":
-        batch_size = config.batch_size // torch.max((torch.cuda.device_count(),1))
+        batch_size = config.batch_size // max((torch.cuda.device_count(),1))
         collection = "test"
         shuffle = False
         aug = None
