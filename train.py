@@ -1,15 +1,11 @@
-import sys
-from os.path import dirname, abspath, join
 from tqdm import tqdm
 import numpy as np
 import torch
 from config import get_config
 from dataset import get_dataloader
-from agent import get_agent
-from utils.utils import cycle, dict_get, acc
+from agent import Agent
+from utils.utils import acc
 import random
-import time
-import os
 
 
 def setup_seed(seed):
@@ -43,7 +39,7 @@ def main():
                       for cat_test_loader in test_loaders] # test per category
 
     # create network and training agent
-    agent = get_agent(config, device)
+    agent = Agent(config, device)
 
     # recover training
     if config.cont:

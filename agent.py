@@ -11,10 +11,6 @@ from flow.flow import get_flow
 from utils.fisher import MatrixFisherN
 
 
-def get_agent(config, device):
-    return Agent(config, device)
-
-
 class Agent:
     def __init__(self, config, device):
         self.device = device
