@@ -310,7 +310,7 @@ class Agent:
             else:
                 feature = self.net(img)  # (b, feature_dim)
                 if self.config.category_num != 1 and self.config.embedding:
-                    self.embedding = self.embeddingto(self.device)
+                    self.embedding = self.embedding.to(self.device)
                     feature = torch.concat(
                         [feature, self.embedding[data.get('cate')]], dim=-1)
                 A = None
