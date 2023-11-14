@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 from torchvision import models
-from torch.hub import load_state_dict_from_url
 from torchvision.models import resnet101
 from torchvision.models.resnet import ResNet101_Weights
 
@@ -14,7 +13,7 @@ fisher_network = dict(
 )
 
 
-def get_network(config, device):
+def get_network(config):
     assert config.condition
 
     if config.pretrain_fisher:
@@ -31,7 +30,6 @@ def get_network(config, device):
         net = get_ResNet(config)
     else:
         raise NotImplementedError()
-    net.to(device)
     return net
 
 
@@ -91,8 +89,8 @@ class TestConfig:
 
 if __name__ == '__main__':
     config = TestConfig()
-    net = get_network(config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net = get_network(config).to(device)
     img = torch.randn(2, 3, 227, 227).to(device)
     output = net(img)
     print(output.shape)
