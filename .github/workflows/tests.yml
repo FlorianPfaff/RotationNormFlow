@@ -48,8 +48,8 @@ jobs:
       run: curl -L -o ModelNet10-SO3.zip ${{ secrets.DOWNLOAD_URL }}
 
     # Add this step after the data download step
-    - name: List data directory contents (after download)
-      run: ls -alh && ls -alh ./data
+    #- name: List data directory contents (after download)
+    #  run: ls -alh && ls -alh ./data
 
     - name: List images
       run: docker images
