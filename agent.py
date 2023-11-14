@@ -279,7 +279,7 @@ class Agent:
             err_deg=err_deg,
         )
         if self.config.dataset == 'pascal3d':
-            easy = torch.nonzero(data.get('easy')to(self.device)).reshape(-1)
+            easy = torch.nonzero(data.get('easy').to(self.device)).reshape(-1)
             result_dict = {k: v[easy] for k, v in result_dict.items()}
         return result_dict
 
