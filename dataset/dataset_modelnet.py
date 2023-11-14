@@ -1,11 +1,7 @@
-import os
-from os.path import join
-import numpy as np
 from dataset.lib.Dataset_Base import Dataset_Base
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from pytorch3d import transforms as trans
-from dataset.dataloader_utils import MixDataset
 
 cate10 = ['bathtub', 'bed', 'chair', 'desk', 'dresser',
           'monitor', 'night_stand', 'sofa', 'table', 'toilet']
@@ -53,7 +49,7 @@ def get_dataloader_modelnet(phase, config):
         aug = None
 
     elif phase == "test":
-        batch_size = config.batch_size // max((torch.cuda.device_count(),1))
+        batch_size = config.batch_size // max((torch.cuda.device_count(), 1))
         collection = "test"
         shuffle = False
         aug = None
@@ -66,7 +62,17 @@ def get_dataloader_modelnet(phase, config):
         dset = ModelNetDataset(
             config.data_dir, category, collection=collection, net_arch="vgg16", aug=aug)
         datasets.append(dset)
-    entire_dataset = MixDataset(datasets)
+
+    # Using ConcatDataset to combine the datasets
+    entire_dataset = ConcatDataset(datasets)
+
+    # DataLoader for the concatenated dataset
     entire_dloader = DataLoader(entire_dataset, batch_size=batch_size,
                                 num_workers=config.num_workers, shuffle=shuffle, pin_memory=True)
-    return entire_dloader, [DataLoader(cat_dset, batch_size=batch_size, num_workers=config.num_workers, shuffle=shuffle, pin_memory=True) for cat_dset in datasets], cate10
+
+    # DataLoaders for individual datasets
+    individual_dloaders = [DataLoader(dset, batch_size=batch_size, 
+                                      num_workers=config.num_workers, shuffle=shuffle, pin_memory=True) 
+                           for dset in datasets]
+
+    return entire_dloader, individual_dloaders, cate10
