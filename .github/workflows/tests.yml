@@ -35,7 +35,7 @@ jobs:
       id: check_folder
       run: |
         if [[ ! -d ./data || $(du -sb ./data | awk '{print $1/1024/1024/1024}') < 2 ]]; then
-            echo "No download required, data folder is over 2 GB in size."
+            echo "Download required, data folder does not exist or is 2 GB in size."
             echo "data_download_required=true" >> $GITHUB_ENV
         else
             echo "No download required, data folder is less than 2 GB in size."

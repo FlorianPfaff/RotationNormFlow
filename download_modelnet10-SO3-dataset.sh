@@ -2,7 +2,6 @@
 
 # Define the directory paths
 data_dir="./data"
-dataset_dir="${data_dir}/ModelNet10-SO3"
 
 # Function to get the size of a directory in GB
 get_dir_size() {
@@ -10,7 +9,7 @@ get_dir_size() {
 }
 
 # Check if the dataset directory exists and is less than 2GB
-if [[ ! -d "${dataset_dir}" || $(get_dir_size "${dataset_dir}") < 2 ]]; then
+if [[ ! -d "${data_dir}" || $(get_dir_size "${data_dir}") < 2 ]]; then
     # Create the data directory if it doesn't exist
     mkdir -p "${data_dir}"
 
@@ -28,7 +27,7 @@ if [[ ! -d "${dataset_dir}" || $(get_dir_size "${dataset_dir}") < 2 ]]; then
     fi
     
     # Unzip the dataset
-    unzip ModelNet10-SO3.zip -d ModelNet10-SO3
+    unzip ModelNet10-SO3.zip
 
     # Remove the zip file
     rm ModelNet10-SO3.zip
