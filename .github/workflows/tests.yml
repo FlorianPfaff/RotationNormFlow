@@ -57,5 +57,6 @@ jobs:
         docker run --ipc=host -v ${{ github.workspace }}:/workspace my-image:latest /bin/bash -c "\
           pip install -r requirements.txt torch-tb-profiler pytest && \
           ls -alh /workspace/data && \
+          ls -alh /workspace/data/ModelNet10-SO3 && \
           /bin/bash download_modelnet10-SO3-dataset.sh && \
           python -m unittest discover -p test_training.py"
