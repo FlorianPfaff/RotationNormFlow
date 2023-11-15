@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 import utils.utils as utils
 import utils.sd as sd
 from utils.networks import get_network
-from flow.flow import get_flow
+from flow.flow import Flow
 from utils.fisher import MatrixFisherN
 
 
@@ -15,7 +15,7 @@ class Agent:
     def __init__(self, config, device):
         self.device = device
         self.config = config
-        self.flow = get_flow(config)
+        self.flow = Flow(config)
         self.flow = DataParallel(self.flow)
         self.optimizer_flow = optim.Adam(self.flow.parameters(), config.lr)
 
