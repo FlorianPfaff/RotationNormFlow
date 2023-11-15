@@ -1,11 +1,8 @@
-from dataset.lib.Dataset_Base import Dataset_Base
-import torch
+from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, ConcatDataset
+from dataset.lib.Dataset_Base import Dataset_Base  # Ensure this import is correct
+import torch
 from pytorch3d import transforms as trans
-
-cate10 = ['bathtub', 'bed', 'chair', 'desk', 'dresser',
-          'monitor', 'night_stand', 'sofa', 'table', 'toilet']
-
 
 class ModelNetDataset(Dataset_Base):
     def __init__(
@@ -41,38 +38,44 @@ class ModelNetDataset(Dataset_Base):
 
         return sample
 
-def get_dataloader_modelnet(phase, config):
-    if phase == "train":
-        batch_size = config.batch_size
-        collection = "train"
-        shuffle = True
-        aug = None
+class ModelNetDataModule(LightningDataModule):
+    def __init__(self, config, batch_size, num_workers, data_dir, net_arch="vgg16"):
+        super().__init__()
+        self.config = config
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.data_dir = data_dir
+        self.net_arch = net_arch
+        self.cate10 = ['bathtub', 'bed', 'chair', 'desk', 'dresser', 'monitor', 'night_stand', 'sofa', 'table', 'toilet']
 
-    elif phase == "test":
-        batch_size = config.batch_size // max((torch.cuda.device_count(), 1))
-        collection = "test"
-        shuffle = False
-        aug = None
+    def setup(self, stage=None):
+        if stage == "fit" or stage is None:
+            self.train_datasets = self._create_datasets("train")
+            self.entire_train_dataset = ConcatDataset(self.train_datasets)
 
-    else:
-        raise ValueError
+        if stage == "test" or stage is None:
+            self.test_datasets = self._create_datasets("test")
+            self.entire_test_dataset = ConcatDataset(self.test_datasets)
 
-    datasets = []
-    for category in cate10:
-        dset = ModelNetDataset(
-            config.data_dir, category, collection=collection, net_arch="vgg16", aug=aug)
-        datasets.append(dset)
+    def _create_datasets(self, collection):
+        datasets = []
+        for category in self.cate10:
+            dataset = ModelNetDataset(self.data_dir, category, collection=collection, net_arch=self.net_arch, aug=None)
+            datasets.append(dataset)
+        return datasets
 
-    # Using ConcatDataset to combine the datasets
-    entire_dataset = ConcatDataset(datasets)
+    def train_dataloader(self):
+        return DataLoader(self.entire_train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, pin_memory=True)
 
-    # DataLoader for the concatenated dataset
-    entire_dloader = DataLoader(entire_dataset, batch_size=batch_size,
-                                num_workers=config.num_workers, shuffle=shuffle, pin_memory=True)
+    def val_dataloader(self):
+        # Return the test dataset DataLoader as validation DataLoader
+        return DataLoader(self.entire_test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True)
 
-    # DataLoaders for individual datasets
-    individual_dloaders = [DataLoader(dset, batch_size=batch_size, 
-                                      num_workers=config.num_workers, shuffle=shuffle, pin_memory=True) 
-                           for dset in datasets]
+    def test_dataloader(self):
+        return DataLoader(self.entire_test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True)
 
-    return entire_dloader, individual_dloaders, cate10
+    def individual_train_dataloaders(self):
+        return [DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, pin_memory=True) for dataset in self.train_datasets]
+
+    def individual_test_dataloaders(self):
+        return [DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True) for dataset in self.test_datasets]

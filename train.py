@@ -2,11 +2,10 @@ from tqdm import tqdm
 import numpy as np
 import torch
 from config import get_config
-from dataset import get_dataloader
 from agent import Agent
 from utils.utils import acc
 import random
-
+from dataset.dataset_modelnet import ModelNetDataModule
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -25,16 +24,18 @@ def main():
     setup_seed(config.RD_SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    modelnet_dm = ModelNetDataModule(config, config.batch_size, config.num_workers, config.data_dir)
+    modelnet_dm.setup() # Setup both test and training datasets
     # create dataloader
     if config.category_num == 1:
-        train_loader = get_dataloader(config.dataset, "train", config)
-        test_loaders = [get_dataloader(config.dataset, "test", config)]
+        train_loader = modelnet_dm.train_dataloader()
+        test_loaders = modelnet_dm.test_dataloader()
         categories = [config.category]
         test_iters = [iter(test_loaders[0])]
     else:
-        train_loader, _, _ = get_dataloader(config.dataset, "train", config)
-        _, test_loaders, categories = get_dataloader(
-            config.dataset, "test", config)
+        train_loader = modelnet_dm.train_dataloader()
+        test_loaders = modelnet_dm.individual_test_dataloaders()
+        categories = modelnet_dm.cate10
         test_iters = [iter(cat_test_loader)
                       for cat_test_loader in test_loaders] # test per category
 
