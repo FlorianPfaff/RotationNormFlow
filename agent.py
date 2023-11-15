@@ -54,7 +54,7 @@ class Agent:
 
     def forward(self, data):
         gt = data.get("rot_mat").to(self.device)  # (b, 3, 3)
-        feature, A = self.compute_feature(data, self.config.condition)
+        feature, A = self.get_feature(data, self.config.condition)
 
         flow = self.flow.to(self.device)
         rotation, ldjs = flow(gt, feature)
@@ -301,6 +301,9 @@ class Agent:
         if self.config.condition:
             self.net.eval()
         self.flow.eval()
+        
+    def get_feature(self, data, condition):
+        self.compute_feature(data, condition)
 
     def compute_feature(self, data, condition):
         if condition == 0:
@@ -320,3 +323,14 @@ class Agent:
                         [feature, self.embedding[data.get('cate')]], dim=-1)
                 A = None
         return feature, A
+
+class PrecomputedTrainingDataAgent(Agent):
+    def get_feature(self, data, _):
+        feature = data['feature']
+        if self.config.pretrain_fisher:
+            raise NotImplementedError('')
+        else:
+            A = None
+            
+        return feature, A
+            
