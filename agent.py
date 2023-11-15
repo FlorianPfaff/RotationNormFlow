@@ -9,11 +9,11 @@ import utils.sd as sd
 from utils.networks import get_network
 from flow.flow import Flow
 from utils.fisher import MatrixFisherN
+import pytorch_lightning as pl
 
-
-class Agent:
-    def __init__(self, config, device):
-        self.device = device
+class Agent(pl.LightningModule):
+    def __init__(self, config):
+        super().__init__()
         self.config = config
         self.flow = Flow(config)
         self.flow = DataParallel(self.flow)
