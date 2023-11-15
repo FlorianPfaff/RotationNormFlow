@@ -17,31 +17,40 @@ class Agent:
         self.config = config
         self.flow = Flow(config)
         self.flow = DataParallel(self.flow)
+        if config.condition:
+            self.net = get_network(config)
+        self.configure_optimizers(config)
+            
+        if config.is_train:
+            print(f'write_log_dir: {self.config.log_dir}]')
+            self.writer = SummaryWriter(log_dir=self.config.log_dir)
+
+        self.clock = utils.TrainClock(self.scheduler_list)
+
+
+    def configure_optimizers(self, config):
         self.optimizer_flow = optim.Adam(self.flow.parameters(), config.lr)
 
         lr_decay = [int(item) for item in config.lr_decay.split(',')]
-        scheduler_list = []
-        scheduler_list.append(optim.lr_scheduler.MultiStepLR(
-            self.optimizer_flow, milestones=lr_decay, gamma=config.gamma))
+        if config.use_lr_decay:
+            self.scheduler_list = []
+            self.scheduler_list.append(optim.lr_scheduler.MultiStepLR(
+                self.optimizer_flow, milestones=lr_decay, gamma=config.gamma))
+        else:
+            self.scheduler_list = None
 
         if config.condition:
-            self.net = get_network(config).to(self.device)
             optimizer_net_list = [*self.net.parameters()]
             if config.embedding and (not config.pretrain_fisher):
                 self.embedding = nn.Parameter(torch.randn(
                     (config.category_num, config.embedding_dim)))
                 optimizer_net_list.append(self.embedding)
             self.optimizer_net = optim.Adam(optimizer_net_list, config.lr)
-            scheduler_list.append(optim.lr_scheduler.MultiStepLR(
-                self.optimizer_net, milestones=lr_decay, gamma=config.gamma))
-            self.net = DataParallel(self.net)
 
-        if config.is_train:
-            print(f'write_log_dir: {self.config.log_dir}]')
-            self.writer = SummaryWriter(log_dir=self.config.log_dir)
-        if not config.use_lr_decay:
-            scheduler_list = None
-        self.clock = utils.TrainClock(scheduler_list)
+            self.net = DataParallel(self.net)
+            if config.use_lr_decay:
+                self.scheduler_list.append(optim.lr_scheduler.MultiStepLR(
+                    self.optimizer_net, milestones=lr_decay, gamma=config.gamma))
 
     def forward(self, data):
         gt = data.get("rot_mat").to(self.device)  # (b, 3, 3)
