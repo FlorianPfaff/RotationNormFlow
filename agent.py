@@ -25,7 +25,7 @@ class Agent:
             self.optimizer_flow, milestones=lr_decay, gamma=config.gamma))
 
         if config.condition:
-            self.net = get_network(config, device)
+            self.net = get_network(config).to(self.device)
             optimizer_net_list = [*self.net.parameters()]
             if config.embedding and (not config.pretrain_fisher):
                 self.embedding = nn.Parameter(torch.randn(
