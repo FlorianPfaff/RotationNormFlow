@@ -55,32 +55,27 @@ def main():
     # start training
     clock = agent.clock
 
+    def log_metrics(writer, metrics, iteration):
+        for key, value in metrics.items():
+            writer.add_scalar(key, value, iteration)
+        
     while True:
         # begin iteration
         pbar = tqdm(train_loader)
-        for b, data in enumerate(pbar):
+        for _, data in enumerate(pbar):
             # train step
             result_dict = agent.train_func(data)
             loss = result_dict["loss"]
 
             if agent.clock.iteration % config.log_frequency == 0:
-                agent.writer.add_scalar(
-                    "train/lr",
-                    agent.optimizer_flow.param_groups[0]["lr"],
-                    clock.iteration,
-                )
-                agent.writer.add_scalar(
-                    "train/loss", result_dict["loss"], clock.iteration
-                )
-                agent.writer.add_scalar(
-                    "train/loss_nll", result_dict["losses_nll"].mean(
-                    ), clock.iteration
-                )
-                agent.writer.add_scalar(
-                    "train/pre_nll", result_dict["losses_pre_nll"].mean(
-                    ), clock.iteration
-                )
-
+                train_metrics = {
+                    "train/lr": agent.optimizer_flow.param_groups[0]["lr"],
+                    "train/loss": result_dict["loss"],
+                    "train/loss_nll": result_dict["losses_nll"].mean(),
+                    "train/pre_nll": result_dict["losses_pre_nll"].mean()
+                }
+                log_metrics(agent.writer, train_metrics, agent.clock.iteration)
+                
             pbar.set_description("EPOCH[{}][{}]".format(
                 clock.epoch, clock.minibatch))
             pbar.set_postfix({"loss": loss.item()})
@@ -89,17 +84,12 @@ def main():
 
             # evaluation
             if clock.iteration % config.val_frequency == 0:
-                categories_loss = []
-                categories_median = []
-                categories_mean = []
-                categories_accs = {}
-                for acc_num in acc_list:
-                    categories_accs[acc_num] = []
+                categories_loss, categories_median, categories_mean = [], [], []
+                categories_accs = {acc_num: [] for acc_num in acc_list}
                 for cate_id in range(len(categories)):
-                    test_loss = []
-                    test_err_deg = []
+                    test_loss, test_err_deg = [], []
 
-                    for i in range(4):
+                    for _ in range(4):
                         try:
                             data = next(test_iters[cate_id])
                         except:
@@ -115,9 +105,6 @@ def main():
                             test_err_deg.append(
                                 result_dict["err_deg"].detach().cpu().numpy()
                             )
-
-                        # entropy = discrete_entropy(fisher_dict['pred'], config.dist, agent.grids)
-                        # fisher_test_entropy.append(entropy.detach().cpu().numpy())
 
                     if config.eval_train == 'nll':
                         test_loss = np.array(test_loss)
@@ -148,7 +135,6 @@ def main():
                         agent.writer.add_scalar(
                             f"test/{categories[cate_id]}/err_mean", err_mean, clock.iteration
                         )
-                        # agent.writer.add_scalar('test/entropy', np.mean(fisher_test_entropy), clock.iteration)
                         for acc_num in acc_list:
                             agent.writer.add_scalar(
                                 f"test/{categories[cate_id]}/acc_{acc_num}", acc(
@@ -168,7 +154,6 @@ def main():
                         f"test/err_mean", np.mean(
                             categories_mean), clock.iteration
                     )
-                    # agent.writer.add_scalar('test/entropy', np.mean(fisher_test_entropy), clock.iteration)
                     for acc_num in acc_list:
                         agent.writer.add_scalar(
                             f"test/acc_{acc_num}", np.mean(
