@@ -1,14 +1,8 @@
 import torch
 from torch import nn
-import numpy as np
 
 from flow.mobiusflow import get_mobius, MobiusFlow
 from flow.affineflow import get_affine
-
-# create flow from config
-def get_flow(config): 
-    return Flow(config)
-
 
 _permute_prop = torch.Tensor(
     [[0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 1, 2], [1, 2, 0], [2, 0, 1]]
