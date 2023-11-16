@@ -40,7 +40,7 @@ def main():
                       for cat_test_loader in test_loaders] # test per category
 
     # create network and training agent
-    agent = Agent(config, device)
+    agent = Agent(config).to(device)
 
     # recover training
     if config.cont:
