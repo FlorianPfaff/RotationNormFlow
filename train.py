@@ -2,10 +2,12 @@ from tqdm import tqdm
 import numpy as np
 import torch
 from config import get_config
-from agent import Agent
+#from agent import Agent
+from agent import PrecomputedTrainingDataAgent as Agent
 from utils.utils import acc
 import random
-from dataset.dataset_modelnet import ModelNetDataModule
+# from dataset.dataset_modelnet import ModelNetDataModule
+from dataset.dataset_modelnet import TrainFeaturesPrecomputedModelNetDataModule
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -24,7 +26,11 @@ def main():
     setup_seed(config.RD_SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    modelnet_dm = ModelNetDataModule(config, config.batch_size, config.num_workers, config.data_dir)
+    # modelnet_dm = ModelNetDataModule(config, config.batch_size, config.num_workers, config.data_dir)
+    features_paths = {'train': 'train_features.npz', 'val': 'val_features.npz', 'test': 'test_features.npz'}
+    metadata_paths = {'train': 'train_metadata.pkl', 'val': 'val_metadata.pkl', 'test': 'test_metadata.pkl'}
+
+    modelnet_dm = TrainFeaturesPrecomputedModelNetDataModule(features_paths, metadata_paths, config, config.batch_size, config.num_workers, config.data_dir)
     modelnet_dm.setup() # Setup both test and training datasets
     # create dataloader
     if config.category_num == 1:
@@ -55,27 +61,32 @@ def main():
     # start training
     clock = agent.clock
 
-    def log_metrics(writer, metrics, iteration):
-        for key, value in metrics.items():
-            writer.add_scalar(key, value, iteration)
-        
     while True:
         # begin iteration
         pbar = tqdm(train_loader)
-        for _, data in enumerate(pbar):
+        for b, data in enumerate(pbar):
             # train step
             result_dict = agent.train_func(data)
             loss = result_dict["loss"]
 
             if agent.clock.iteration % config.log_frequency == 0:
-                train_metrics = {
-                    "train/lr": agent.optimizer_flow.param_groups[0]["lr"],
-                    "train/loss": result_dict["loss"],
-                    "train/loss_nll": result_dict["losses_nll"].mean(),
-                    "train/pre_nll": result_dict["losses_pre_nll"].mean()
-                }
-                log_metrics(agent.writer, train_metrics, agent.clock.iteration)
-                
+                agent.writer.add_scalar(
+                    "train/lr",
+                    agent.optimizer_flow.param_groups[0]["lr"],
+                    clock.iteration,
+                )
+                agent.writer.add_scalar(
+                    "train/loss", result_dict["loss"], clock.iteration
+                )
+                agent.writer.add_scalar(
+                    "train/loss_nll", result_dict["losses_nll"].mean(
+                    ), clock.iteration
+                )
+                agent.writer.add_scalar(
+                    "train/pre_nll", result_dict["losses_pre_nll"].mean(
+                    ), clock.iteration
+                )
+
             pbar.set_description("EPOCH[{}][{}]".format(
                 clock.epoch, clock.minibatch))
             pbar.set_postfix({"loss": loss.item()})
@@ -84,12 +95,17 @@ def main():
 
             # evaluation
             if clock.iteration % config.val_frequency == 0:
-                categories_loss, categories_median, categories_mean = [], [], []
-                categories_accs = {acc_num: [] for acc_num in acc_list}
+                categories_loss = []
+                categories_median = []
+                categories_mean = []
+                categories_accs = {}
+                for acc_num in acc_list:
+                    categories_accs[acc_num] = []
                 for cate_id in range(len(categories)):
-                    test_loss, test_err_deg = [], []
+                    test_loss = []
+                    test_err_deg = []
 
-                    for _ in range(4):
+                    for i in range(4):
                         try:
                             data = next(test_iters[cate_id])
                         except:
@@ -105,6 +121,9 @@ def main():
                             test_err_deg.append(
                                 result_dict["err_deg"].detach().cpu().numpy()
                             )
+
+                        # entropy = discrete_entropy(fisher_dict['pred'], config.dist, agent.grids)
+                        # fisher_test_entropy.append(entropy.detach().cpu().numpy())
 
                     if config.eval_train == 'nll':
                         test_loss = np.array(test_loss)
@@ -135,6 +154,7 @@ def main():
                         agent.writer.add_scalar(
                             f"test/{categories[cate_id]}/err_mean", err_mean, clock.iteration
                         )
+                        # agent.writer.add_scalar('test/entropy', np.mean(fisher_test_entropy), clock.iteration)
                         for acc_num in acc_list:
                             agent.writer.add_scalar(
                                 f"test/{categories[cate_id]}/acc_{acc_num}", acc(
@@ -154,6 +174,7 @@ def main():
                         f"test/err_mean", np.mean(
                             categories_mean), clock.iteration
                     )
+                    # agent.writer.add_scalar('test/entropy', np.mean(fisher_test_entropy), clock.iteration)
                     for acc_num in acc_list:
                         agent.writer.add_scalar(
                             f"test/acc_{acc_num}", np.mean(
